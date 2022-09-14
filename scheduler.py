@@ -82,7 +82,17 @@ def send_oura_data_to_wsh():
     with open(os.path.join(os.getcwd(), '_oura2_call_oura_api.json')) as json_file:
         oura_response_dict = json.loads(json.load(json_file))
     
+    base_url = 'http://localhost:5000'
+    headers = { 'Content-Type': 'application/json'}
+    payload = {}
+    payload['password'] = 'I<3shoes!m'
+    payload['oura_response_dict'] = oura_response_dict
+    response_oura_tokens = requests.request('GET',base_url + '/receive_oura_data', headers=headers, data=str(json.dumps(payload)))
+    oura_tokens_dict = json.loads(response_oura_tokens.content.decode('utf-8'))
+    response_oura_tokens.status_code
 
+    print('oura_tokens_dict: ')
+    print(oura_tokens_dict)
 
 
 #4) send call to wsh06 api to get locations
