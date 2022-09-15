@@ -12,9 +12,9 @@ config = ConfigDev()
 def scheduler_funct():
     print('* Started Scheduler *')
     scheduler = BackgroundScheduler()
-    # job_call_wsh_oura_tokens = scheduler.add_job( get_oura_tokens, 'cron', minute = '*', second='35')
-    # job_call_oura_api = scheduler.add_job( call_oura_api, 'cron', minute = '*', second='45')
-    job_call_get_locations = scheduler.add_job(get_locations, 'cron', minute = '*', second = '25')
+    job_call_wsh_oura_tokens = scheduler.add_job(get_oura_tokens, 'cron', day='*', hour='22', minute='30')
+    
+    job_call_get_locations = scheduler.add_job(get_locations, 'cron', day='*', hour='23')
 
     scheduler.start()
 
@@ -136,36 +136,36 @@ def call_weather_api():
         locations_dict = json.loads(json.load(json_file))
         #locatinos_dict = {loc_id: [lat, lon]}
 
-    # weather_dict = {}
-    # #1) Loop through dictionary
-    # for loc_id, coords in locations_dict.items():
-    #     location_coords = f"{coords[0]}, {coords[1]}"
-    #     api_token = config.WEATHER_API_KEY
-    #     base_url = 'http://api.weatherapi.com/v1'
-    #     history = '/history.json'
-    #     payload = {}
-    #     payload['q'] = location_coords
-    #     payload['key'] = api_token
-    #     yesterday = datetime.today() - timedelta(days=1)
-    #     payload['dt'] = yesterday.strftime('%Y-%m-%d')
-    #     payload['hour'] = 0
-    #     try:
-    #         r_history = requests.get(base_url + history, params = payload)
+    weather_dict = {}
+    #1) Loop through dictionary
+    for loc_id, coords in locations_dict.items():
+        location_coords = f"{coords[0]}, {coords[1]}"
+        api_token = config.WEATHER_API_KEY
+        base_url = 'http://api.weatherapi.com/v1'
+        history = '/history.json'
+        payload = {}
+        payload['q'] = location_coords
+        payload['key'] = api_token
+        yesterday = datetime.today() - timedelta(days=1)
+        payload['dt'] = yesterday.strftime('%Y-%m-%d')
+        payload['hour'] = 0
+        try:
+            r_history = requests.get(base_url + history, params = payload)
             
-    #         if r_history.status_code == 200:
+            if r_history.status_code == 200:
             
-    #             #2) for each id call weather api
-    #             weather_dict[loc_id] = r_history.json()
-    #         else:
-    #             weather_dict[loc_id] = f'Problem connecting with Weather API. Response code: {r_history.status_code}'
-    #     except:
-    #         weather_dict[loc_id] = 'Error making call to Weather API. No response.'
+                #2) for each id call weather api
+                weather_dict[loc_id] = r_history.json()
+            else:
+                weather_dict[loc_id] = f'Problem connecting with Weather API. Response code: {r_history.status_code}'
+        except:
+            weather_dict[loc_id] = 'Error making call to Weather API. No response.'
     
-    # #3) put response in  a json
-    # weather_dict_json = json.dumps(weather_dict)
-    # with open(os.path.join(os.getcwd(), '_locations2_call_weather_api.json'), 'w') as outfile:
-    #     json.dump(weather_dict_json, outfile)
-    # print('---> json file with oura data successfully written.')
+    #3) put response in  a json
+    weather_dict_json = json.dumps(weather_dict)
+    with open(os.path.join(os.getcwd(), '_locations2_call_weather_api.json'), 'w') as outfile:
+        json.dump(weather_dict_json, outfile)
+    print('---> json file with oura data successfully written.')
 
     send_weather_data_to_wsh()
     
