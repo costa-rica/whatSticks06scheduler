@@ -2,3 +2,4 @@ __pycache__/
 ~$*
 *.json
 *.log
+json_utils_dir/

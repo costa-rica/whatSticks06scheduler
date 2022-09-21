@@ -3,13 +3,26 @@ import json
 import requests
 from datetime import datetime, timedelta
 import os
-from wsh_config import ConfigDev
+from wsh_config import ConfigDev, ConfigProd
 import logging
 from logging.handlers import RotatingFileHandler
 
-config = ConfigDev()
 
-logs_dir = os.getcwd()
+
+
+if os.environ.get('COMPUTERNAME')=='CAPTAIN2020' or os.environ.get('COMPUTERNAME')=='NICKSURFACEPRO4':
+    config = ConfigDev()
+    logs_dir = os.getcwd()
+    config.json_utils_dir = os.path.join(os.getcwd(),'json_utils_dir')
+    print('* Development')
+else:
+    config = ConfigProd()
+    config.app_dir = r"/home/ubuntu/applications/whatSticks06scheduler/"
+    logs_dir = config.app_dir
+    config.json_utils_dir = os.path.join(config.app_dir,'json_utils_dir')
+    print('* ---> Configured for Production')
+
+
 
 #Setting up Logger
 formatter = logging.Formatter('%(asctime)s:%(name)s:%(message)s')
@@ -34,23 +47,22 @@ logger_init.addHandler(stream_handler)
 
 
 def scheduler_funct():
-    print('** Old school print **')
+    
     logger_init.info(f'--- Started Scheduler *')
 
-    scheduler = BackgroundScheduler()
-    # job_call_wsh_oura_tokens = scheduler.add_job(get_oura_tokens, 'cron', day='*', hour='22', minute='30')
-    # job_call_wsh_oura_tokens = scheduler.add_job(get_oura_tokens, 'cron',  minute='*', second='35')
+    if not os.path.exists(config.json_utils_dir):
+        os.makedirs(config.json_utils_dir)
+        logger_init.info(f'--- successfully created {config.json_utils_dir} *')
 
-    job_call_get_locations = scheduler.add_job(get_locations, 'cron',  day='*', hour='23')
-    # job_call_get_locations = scheduler.add_job(get_locations, 'cron',  hour='*', minute='51', second='15')
+    scheduler = BackgroundScheduler()
+
+    # job_call_get_locations = scheduler.add_job(get_locations, 'cron',  day='*', hour='23')#Production
+    job_call_get_locations = scheduler.add_job(get_locations, 'cron',  hour='*', minute='38', second='05')#Testing
 
     scheduler.start()
 
     while True:
         pass
-
-
-    
 
 
 
@@ -62,38 +74,41 @@ def get_locations():
     base_url = config.WSH_API_URL_BASE#TODO: put this address in config
     headers = { 'Content-Type': 'application/json'}
     payload = {}
-    payload['password'] = config.MAIL_PASSWORD
-    response_oura_tokens = requests.request('GET',base_url + '/get_locations',
+    payload['password'] = config.EMAIL_PASSWORD
+    response_wsh_locations = requests.request('GET',base_url + '/get_locations',
         headers=headers, data=str(json.dumps(payload)))
-    oura_tokens_dict = json.loads(response_oura_tokens.content.decode('utf-8'))
+    
     
     # print('API call response code: ', response_oura_tokens.status_code)
-    logger_init.info(f'---> API call response code: {response_oura_tokens.status_code}')
+    logger_init.info(f'---> API call response code: {response_wsh_locations.status_code}')
 
-    if response_oura_tokens.status_code == 200:
+    if response_wsh_locations.status_code == 200:
+        response_wsh_loc_dict = json.loads(response_wsh_locations.content.decode('utf-8'))
+        wsh_loc_dict = json.dumps(response_wsh_loc_dict)
         try:
             # now we get the response... let's save it somewhere
-            oura_tokens = json.dumps(oura_tokens_dict)
+            
 
-            with open(os.path.join(os.getcwd(), '_locations1_get_locations.json'), 'w') as outfile:
-                json.dump(oura_tokens, outfile)
+            with open(os.path.join(config.json_utils_dir, '_locations1_get_locations.json'), 'w') as outfile:
+                json.dump(wsh_loc_dict, outfile)
         
             # print(f'Locations succesfully saved in {os.path.join(os.getcwd(), "_locations1_get_locations.json")}')
-            logger_init.info(f'Locations succesfully saved in {os.path.join(os.getcwd(), "_locations1_get_locations.json")}')
+            logger_init.info(f'Locations succesfully saved in {os.path.join(config.json_utils_dir, "_locations1_get_locations.json")}')
         except:
             # print('There was a problem with the response')
             logger_init.info('There was a problem with the response')
     else:
         # print(f'Call not succesful. Status code: ', response_oura_tokens.status_code)
-        logger_init.info(f'Call not succesful. Status code: {response_oura_tokens.status_code}')
+        logger_init.info(f'Call not succesful. Status code: {response_wsh_locations.status_code}')
     
     call_weather_api()
+
 
 #2) call weather Api every evning 9pm
 def call_weather_api():
     # print('--- In call_weather_api() of scheduler.py----')
     logger_init.info('--- In call_weather_api() of scheduler.py----')
-    with open(os.path.join(os.getcwd(), '_locations1_get_locations.json')) as json_file:
+    with open(os.path.join(config.json_utils_dir, '_locations1_get_locations.json')) as json_file:
         locations_dict = json.loads(json.load(json_file))
         #locatinos_dict = {loc_id: [lat, lon]}
 
@@ -125,7 +140,7 @@ def call_weather_api():
     
     #3) put response in  a json
     weather_dict_json = json.dumps(weather_dict)
-    with open(os.path.join(os.getcwd(), '_locations2_call_weather_api.json'), 'w') as outfile:
+    with open(os.path.join(config.json_utils_dir, '_locations2_call_weather_api.json'), 'w') as outfile:
         json.dump(weather_dict_json, outfile)
     # print('---> json file with oura data successfully written.')
     logger_init.info('---> json file with oura data successfully written.')
@@ -140,7 +155,7 @@ def send_weather_data_to_wsh():
     # get oura response data from os.path.join(os.getcwd(), 'get_oura_tokens.json')
     
     try:
-        with open(os.path.join(os.getcwd(), '_locations2_call_weather_api.json')) as json_file:
+        with open(os.path.join(config.json_utils_dir, '_locations2_call_weather_api.json')) as json_file:
             weather_response_dict = json.loads(json.load(json_file))
     except:
         weather_response_dict=''
@@ -152,7 +167,7 @@ def send_weather_data_to_wsh():
         base_url = config.WSH_API_URL_BASE
         headers = { 'Content-Type': 'application/json'}
         payload = {}
-        payload['password'] = config.MAIL_PASSWORD
+        payload['password'] = config.EMAIL_PASSWORD
         payload['weather_response_dict'] = weather_response_dict
         
         response_wsh_weather = requests.request('GET',base_url + '/receive_weather_data', 
@@ -163,8 +178,6 @@ def send_weather_data_to_wsh():
     get_oura_tokens()
 
 
-
-
 #4) scheduler sends call to wsh06 api to get oura ring user tokens
 def get_oura_tokens():
     
@@ -172,7 +185,7 @@ def get_oura_tokens():
     base_url = config.WSH_API_URL_BASE#TODO: put this address in config
     headers = { 'Content-Type': 'application/json'}
     payload = {}
-    payload['password'] = config.MAIL_PASSWORD
+    payload['password'] = config.EMAIL_PASSWORD
     response_oura_tokens = requests.request('GET',base_url + '/oura_tokens', headers=headers, data=str(json.dumps(payload)))
     oura_tokens_dict = json.loads(response_oura_tokens.content.decode('utf-8'))
     response_oura_tokens.status_code
@@ -180,7 +193,7 @@ def get_oura_tokens():
     # now we get the response... let's save it somewhere
     oura_tokens = json.dumps(oura_tokens_dict)
 
-    with open(os.path.join(os.getcwd(), '_oura1_get_oura_tokens.json'), 'w') as outfile:
+    with open(os.path.join(config.json_utils_dir, '_oura1_get_oura_tokens.json'), 'w') as outfile:
         json.dump(oura_tokens, outfile)
     
     #once finished call oura api
@@ -191,7 +204,7 @@ def get_oura_tokens():
 def call_oura_api():
     logger_init.info(f'--> Calling Oura API')
     # get oura tokens from os.path.join(os.getcwd(), 'get_oura_tokens.json')
-    with open(os.path.join(os.getcwd(), '_oura1_get_oura_tokens.json')) as json_file:
+    with open(os.path.join(config.json_utils_dir, '_oura1_get_oura_tokens.json')) as json_file:
         oura_tokens_dict = json.loads(json.load(json_file))
     
     oura_response_dict = {}
@@ -217,7 +230,7 @@ def call_oura_api():
         oura_response_dict[user_id] = sleep_dict
     
     oura_sleep_json = json.dumps(oura_response_dict)
-    with open(os.path.join(os.getcwd(), '_oura2_call_oura_api.json'), 'w') as outfile:
+    with open(os.path.join(config.json_utils_dir, '_oura2_call_oura_api.json'), 'w') as outfile:
         json.dump(oura_sleep_json, outfile)
     # print('---> json file with oura data successfully written.')
     logger_init.info(f'---> json file with oura data successfully written.')
@@ -230,14 +243,14 @@ def call_oura_api():
 def send_oura_data_to_wsh():
     logger_init.info(f'---> Sending oura data to wsh06 api')
     # get oura response data from os.path.join(os.getcwd(), 'get_oura_tokens.json')
-    with open(os.path.join(os.getcwd(), '_oura2_call_oura_api.json')) as json_file:
+    with open(os.path.join(config.json_utils_dir, '_oura2_call_oura_api.json')) as json_file:
         oura_response_dict = json.loads(json.load(json_file))
     
     # base_url = 'http://localhost:5000'#TODO: put this address in config
     base_url = config.WSH_API_URL_BASE
     headers = {'Content-Type': 'application/json'}
     payload = {}
-    payload['password'] = config.MAIL_PASSWORD
+    payload['password'] = config.EMAIL_PASSWORD
     payload['oura_response_dict'] = oura_response_dict
     response_oura_tokens = requests.request('GET',base_url + '/receive_oura_data', headers=headers, data=str(json.dumps(payload)))
     oura_tokens_dict = json.loads(response_oura_tokens.content.decode('utf-8'))
